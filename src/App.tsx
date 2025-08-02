@@ -1,257 +1,302 @@
-import React from "react";
-import "./App.css";
-import { Header, Segment, Form, Button, Card, Image } from "semantic-ui-react";
-import Startbar from "./Startbar";
-
-import { Types, AptosClient, BCS } from "aptos";
-import nacl from "tweetnacl";
-var Buffer = require("buffer/").Buffer;
+import React, { useEffect, useState } from 'react';
+import { AptosClient } from 'aptos';
+import { AuthProvider, useAuth } from './components/Auth';
+import Header from './components/Header';
+import CreateGame from './components/CreateGame';
+import GameCard from './components/GameCard';
+import NFTBanner from './components/NFTBanner';
+import NFTInfoCard from './components/NFTInfoCard';
+import RocketCrashPage from './pages/RocketCrashPage';
+import { RefreshCw, AlertCircle } from 'lucide-react';
+import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 
 const client = new AptosClient("https://api.mainnet.aptoslabs.com/v1");
 
-/** Convert string to hex-encoded utf-8 bytes. */
+interface Game {
+  bet_amount?: string;
+  coin_store: { value: string };
+  game_id: string;
+  joinee: { vec: [] };
+  owner: string;
+  owner_choice: boolean;
+  result: { vec: Array<string> };
+  room_creation_time: string;
+  winner: { vec: [] };
+}
 
-function App() {
-  // Retrieve aptos.account on initial render and store it.
+interface GameStore {
+  games?: Array<Game>;
+}
 
-  type GameStore = {
-    games?: Array<Game>;
-  };
+const publishedAddress = "0x891bdbd410600de9973cda45e61154f48500c1f0eb37eb0c2ff8d58b65be816c";
 
-  type Game = {
-    bet_amount?: string;
-    coin_store: { value: string };
-    game_id: string;
-    joinee: { vec: [] };
-    owner: string;
-    owner_choice: boolean;
-    result: { vec: Array<string> };
-    room_creation_time: string;
-    winner: { vec: [] };
-  };
-
-  const publishedAddress =
-    "0x891bdbd410600de9973cda45e61154f48500c1f0eb37eb0c2ff8d58b65be816c";
-  const urlAddress = window.location.pathname.slice(1).toLowerCase();
-  const [address, setAddress] = React.useState("");
-  const [roomDetails, setRoomDetails] = React.useState({
-    roomId: "",
-    betAmount: 0,
-    choice: false,
-  });
-  const [games, setGames] = React.useState<GameStore>();
-  const [isSaving, setIsSaving] = React.useState<boolean>(false);
-  const [present, setPresent] = React.useState(false);
-  React.useEffect(() => {
-    connectToWallet();
-    fetchGames();
-  }, []);
-
-  const connectToWallet = async () => {
-    const status = await (window as any).aptos.isConnected();
-    if (!status) {
-      const result = await window.aptos.connect();
-      setAddress(result);
-    } else {
-      console.log("Wallet connected", urlAddress);
-    }
-  };
+const AppContent: React.FC = () => {
+  const { address, isConnected, signAndSubmitTransaction } = useAuth();
+  const [games, setGames] = useState<GameStore>();
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const fetchGames = async () => {
-
-    const all = await client.getAccountResources("0x891bdbd410600de9973cda45e61154f48500c1f0eb37eb0c2ff8d58b65be816c")
-    console.log(all);
-
-    const resource = await client.getAccountResource(
-      publishedAddress,
-      `${publishedAddress}::Flip::GameStore`
-    );
-    const data: GameStore = resource.data;
-    if (data?.games !== undefined) {
-      setGames(data);
-      setPresent(true);
-      console.log(data.games[0]);
-    }
-  };
-  const handleCreateRoomChange = (value: boolean) => {
-    console.log(value);
-    console.log(games);
-    console.log(address);
-    setRoomDetails({
-      ...roomDetails,
-      choice: value,
-    });
-  };
-
-  const handleRoomChange = (e: any) => {
-    console.log(e.target.value);
-    setRoomDetails({
-      ...roomDetails,
-      betAmount: e.target.value,
-    });
-  };
-
-  const createRoom = async (e: any) => {
-    e.preventDefault();
-    setIsSaving(true);
-
-    const roomId = Math.floor(Math.random() * 100000) + 1;
-    const response = await window.aptos.connect();
-    const sender = response.address;
-
-    const num = await client.estimateMaxGasAmount(sender);
-    console.log(num);
-
-    const transaction = {
-      type: "entry_function_payload",
-      function: `${publishedAddress}::Flip::create_room`,
-      arguments: [roomId, roomDetails.betAmount, roomDetails.choice],
-      type_arguments: [],
-    };
-
     try {
-      console.log(" in try here");
-      const txnHash = await window.aptos.signAndSubmitTransaction(transaction);
-      console.log(txnHash.hash);
-      await client.waitForTransaction(txnHash.hash);
-      console.log(" it wont come here");
-      fetchGames();
-    } catch (e) {
-      console.log(e);
+      setIsRefreshing(true);
+      setError(null);
+
+      const resource = await client.getAccountResource(
+        publishedAddress,
+        `${publishedAddress}::Flip::GameStore`
+      );
+      
+      const data: GameStore = resource.data;
+      if (data?.games !== undefined) {
+        setGames(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch games:', err);
+      setError('Failed to load games. Please try again.');
     } finally {
-      setIsSaving(false);
+      setIsRefreshing(false);
     }
   };
 
-  const playGame = async (game_id: string) => {
-    console.log(game_id);
-    setIsSaving(true);
+  useEffect(() => {
+    fetchGames();
+    
+    // Set up polling for game updates
+    const interval = setInterval(fetchGames, 10000); // Refresh every 10 seconds
+    
+    return () => clearInterval(interval);
+  }, []);
 
-    const transaction = {
-      type: "entry_function_payload",
-      function: `${publishedAddress}::Flip::join_room`,
-      arguments: [parseInt(game_id)],
-      type_arguments: [],
-    };
+  const createGame = async (betAmount: number, choice: boolean) => {
+    if (!isConnected || !address) {
+      throw new Error('Please connect your wallet first');
+    }
+
+    setIsLoading(true);
+    setError(null);
 
     try {
-      console.log(" in try here");
-      let result = await window.aptos.signAndSubmitTransaction(transaction);
-      console.log(result);
-      await client.waitForTransaction(result.hash);
-      console.log(" it wont come here");
-      fetchGames();
-    } catch (e) {
-      console.log(e);
+      const roomId = Math.floor(Math.random() * 100000) + 1;
+      
+      // Convert bet amount to octas (1 APT = 100,000,000 octas)
+      // This ensures we're passing an integer value to the blockchain
+      const betAmountInOctas = Math.floor(betAmount * 100000000);
+      
+      const transaction = {
+        type: "entry_function_payload",
+        function: `${publishedAddress}::Flip::create_room`,
+        arguments: [roomId, betAmountInOctas, choice],
+        type_arguments: [],
+      };
+
+      await signAndSubmitTransaction(transaction);
+      await fetchGames();
+    } catch (err) {
+      console.error('Failed to create game:', err);
+      throw new Error(err instanceof Error ? err.message : 'Failed to create game');
     } finally {
-      setIsSaving(false);
+      setIsLoading(false);
     }
   };
 
-  const claimRewards = async (game_id: string) => {
-    console.log(game_id);
-    setIsSaving(true);
+  const playGame = async (gameId: string) => {
+    if (!isConnected || !address) {
+      throw new Error('Please connect your wallet first');
+    }
 
-    const transaction = {
-      type: "entry_function_payload",
-      function: `${publishedAddress}::Flip::claim_rewards`,
-      arguments: [parseInt(game_id)],
-      type_arguments: [],
-    };
+    setIsLoading(true);
+    setError(null);
 
     try {
-      console.log(" in try here");
-      let result = await window.aptos.signAndSubmitTransaction(transaction);
-      console.log(result);
-      await client.waitForTransaction(result.hash);
-      console.log(" it wont come here");
-      fetchGames();
-    } catch (e) {
-      console.log(e);
+      const transaction = {
+        type: "entry_function_payload",
+        function: `${publishedAddress}::Flip::join_room`,
+        arguments: [parseInt(gameId)],
+        type_arguments: [],
+      };
+
+      await signAndSubmitTransaction(transaction);
+      await fetchGames();
+    } catch (err) {
+      console.error('Failed to join game:', err);
+      throw new Error(err instanceof Error ? err.message : 'Failed to join game');
     } finally {
-      setIsSaving(false);
-    } 
-  }
+      setIsLoading(false);
+    }
+  };
+
+  const claimRewards = async (gameId: string) => {
+    if (!isConnected || !address) {
+      throw new Error('Please connect your wallet first');
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const transaction = {
+        type: "entry_function_payload",
+        function: `${publishedAddress}::Flip::claim_rewards`,
+        arguments: [parseInt(gameId)],
+        type_arguments: [],
+      };
+
+      await signAndSubmitTransaction(transaction);
+      await fetchGames();
+    } catch (err) {
+      console.error('Failed to claim rewards:', err);
+      throw new Error(err instanceof Error ? err.message : 'Failed to claim rewards');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
-    <div className="App">
-      <Startbar />
-      <Header as="h1">Kuroi Coin Flip</Header>
-      <div className="content leftAlign">
-        <Segment>
-          <Header as="h2" dividing>
-            Join or create
-          </Header>
-          <Form>
-            <Form.Field>
-              <label>Bet Amount</label>
-              <input
-                type="number"
-                placeholder="Enter Bet Amount"
-                onChange={handleRoomChange}
-              />
-            </Form.Field>
-            <Form.Group inline>
-              <label>Size</label>
-              <Form.Radio
-                label="Tails"
-                value="0"
-                checked={roomDetails.choice === false}
-                onChange={() => handleCreateRoomChange(false)}
-              />
-              <Form.Radio
-                label="Heads"
-                value="1"
-                checked={roomDetails.choice === true}
-                onChange={() => handleCreateRoomChange(true)}
-              />
-            </Form.Group>
-            {isSaving ? (
-              <Button primary loading>
-                Create Room
-              </Button>
-            ) : (
-              <Button primary onClick={createRoom}>
-                Create Room
-              </Button>
-            )}
-          </Form>
-          <Header as="h3">Games</Header>
-          <Card.Group>
-            {games?.games?.map((game, index) => {
-              return (
-                <Card>
-                  <Card.Content>
-                    <Card.Header>Game: {game.game_id}</Card.Header>
-                    <Card.Meta>Bet Amount: {game.bet_amount}</Card.Meta>
-                    <Card.Meta>
-                      Room Owner Choice: {game.owner_choice ? "Tails" : "Heads"}
-                    </Card.Meta>
-                    {game.result.vec.length > 0 && <Card.Description>
-                       Result: {game.result.vec[0] === "0" ? <strong>Tails</strong> : <strong>Heads</strong>}
-                    </Card.Description>}
-                  </Card.Content>
-                  <Card.Content extra>
-                    <div className="ui two buttons">
-                      {game.winner.vec.length > 0 ? (
-                         <Button basic color="red" onClick={() => claimRewards(game.game_id)}>
-                          Claim
-                        </Button>
-                      ) : (
-                        <Button basic color="green" onClick={() => playGame(game.game_id)}>
-                          Play
-                        </Button>
-                      )}
+    <div className="min-h-screen bg-stone-900">
+      <Header />
+      <NFTBanner />
+      
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Create Game Section */}
+          <div className="lg:col-span-1">
+            <CreateGame
+              onCreateGame={createGame}
+              isLoading={isLoading}
+              isConnected={isConnected}
+            />
+          </div>
+
+          {/* Available Games Section */}
+          <div className="lg:col-span-1">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-2xl font-bold text-amber-100">Available Games</h2>
+                <p className="text-amber-200 text-sm">Choose your game</p>
+              </div>
+            </div>
+
+            {/* Game Cards */}
+            <div className="space-y-4">
+              {/* Coinflip Game */}
+              <div className="card hover:bg-stone-800 transition-colors duration-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-gradient-to-br from-amber-100 to-yellow-100 rounded-lg flex items-center justify-center border border-amber-200/30">
+                      <span className="text-amber-800 font-bold text-lg">🪙</span>
                     </div>
-                  </Card.Content>
-                </Card>
-              );
-            })}
-          </Card.Group>
-        </Segment>
-      </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-amber-100">Coinflip</h3>
+                      <p className="text-amber-300 text-sm">Classic heads or tails</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-amber-100 font-medium">{games?.games?.length || 0} active</div>
+                    <div className="text-amber-300 text-xs">Available now</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Rocket Crash Game */}
+              <Link to="/rocket-crash" className="block">
+                <div className="card hover:bg-stone-800 transition-colors duration-200 cursor-pointer">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-gradient-to-br from-amber-100 to-yellow-100 rounded-lg flex items-center justify-center border border-amber-200/30">
+                        <span className="text-amber-800 font-bold text-lg">🚀</span>
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-amber-100">Rocket Crash</h3>
+                        <p className="text-amber-300 text-sm">Cash out before it crashes!</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-amber-100 font-medium">1,247 players</div>
+                      <div className="text-amber-300 text-xs">Live now</div>
+                    </div>
+                  </div>
+                </div>
+              </Link>
+            </div>
+
+            {/* NFT Info Card */}
+            <div className="mt-6">
+              <NFTInfoCard />
+            </div>
+          </div>
+
+          {/* Active Coinflip Games */}
+          <div className="lg:col-span-1">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-2xl font-bold text-amber-100">Active Coinflip Games</h2>
+                <p className="text-amber-200 text-sm">
+                  {games?.games?.length || 0} games available
+                </p>
+              </div>
+              
+              <button
+                onClick={fetchGames}
+                disabled={isRefreshing}
+                className="bg-stone-800 hover:bg-stone-700 border border-stone-600 text-amber-200 hover:text-amber-100 px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center space-x-2"
+              >
+                <RefreshCw size={16} className={isRefreshing ? 'animate-spin' : ''} />
+                <span>Refresh</span>
+              </button>
+            </div>
+
+            {/* Error Message */}
+            {error && (
+              <div className="bg-red-900/20 border border-red-500/50 rounded-lg p-4 mb-6 flex items-center space-x-2">
+                <AlertCircle size={16} className="text-red-400" />
+                <span className="text-red-400">{error}</span>
+              </div>
+            )}
+
+            {/* Games Grid */}
+            {games?.games && games.games.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {games.games.map((game) => (
+                  <GameCard
+                    key={game.game_id}
+                    game={game}
+                    onPlay={playGame}
+                    onClaim={claimRewards}
+                    isLoading={isLoading}
+                    userAddress={address}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <div className="w-16 h-16 bg-stone-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <RefreshCw size={24} className="text-amber-300" />
+                </div>
+                <h3 className="text-lg font-medium text-amber-200 mb-2">No games available</h3>
+                <p className="text-amber-300 text-sm">
+                  Create a new game to get started
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      </main>
     </div>
   );
-}
+};
+
+const App: React.FC = () => {
+  return (
+    <AuthProvider>
+      <Router>
+        <Routes>
+          <Route path="/" element={<AppContent />} />
+          <Route path="/rocket-crash" element={<RocketCrashPage />} />
+        </Routes>
+      </Router>
+    </AuthProvider>
+  );
+};
 
 export default App;

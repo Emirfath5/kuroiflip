@@ -1,0 +1,201 @@
+/* Game-specific Component Styles */
+
+/* Coin Flip Animation */
+.coin-flip {
+  animation: flip 0.6s ease-in-out;
+}
+
+@keyframes flip {
+  0% { transform: rotateY(0deg); }
+  50% { transform: rotateY(180deg); }
+  100% { transform: rotateY(360deg); }
+}
+
+/* Game Card Specific Styles */
+.game-card {
+  @apply card relative overflow-hidden;
+}
+
+.game-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+  transition: left 0.5s;
+}
+
+.game-card:hover::before {
+  left: 100%;
+}
+
+/* Choice Selection Styles */
+.choice-button {
+  @apply relative overflow-hidden transition-all duration-300;
+}
+
+.choice-button::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.2) 0%, transparent 70%);
+  transform: translate(-50%, -50%);
+  transition: width 0.3s, height 0.3s;
+}
+
+.choice-button:active::after {
+  width: 200px;
+  height: 200px;
+}
+
+/* Loading States */
+.loading-overlay {
+  @apply absolute inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-10;
+}
+
+.loading-spinner {
+  @apply w-8 h-8 spinner;
+}
+
+/* Game Status Indicators */
+.status-indicator {
+  @apply inline-flex items-center space-x-2 px-3 py-1 rounded-full text-sm font-medium;
+}
+
+.status-pending {
+  @apply status-indicator bg-amber-900/20 text-amber-400 border border-amber-500/30;
+}
+
+.status-active {
+  @apply status-indicator bg-green-900/20 text-green-400 border border-green-500/30;
+}
+
+.status-finished {
+  @apply status-indicator bg-stone-900/20 text-stone-400 border border-stone-500/30;
+}
+
+.status-winner {
+  @apply status-indicator bg-amber-900/20 text-amber-400 border border-amber-500/30;
+}
+
+/* Bet Amount Display */
+.bet-amount {
+  @apply flex items-center space-x-2 px-3 py-2 bg-amber-900/20 border border-amber-500/30 rounded-lg;
+}
+
+.bet-amount-text {
+  @apply text-amber-400 font-semibold;
+}
+
+/* Player Avatar */
+.player-avatar {
+  @apply w-8 h-8 rounded-full bg-gradient-to-br from-amber-100 to-yellow-100 flex items-center justify-center text-amber-800 font-bold text-sm;
+}
+
+/* Game Timer */
+.game-timer {
+  @apply flex items-center space-x-2 text-sm text-amber-300;
+}
+
+.timer-dot {
+  @apply w-2 h-2 bg-red-500 rounded-full animate-pulse;
+}
+
+/* Result Display */
+.result-display {
+  @apply flex items-center justify-center space-x-3 p-4 rounded-lg;
+}
+
+.result-heads {
+  @apply result-display bg-amber-900/20 border border-amber-500/30;
+}
+
+.result-tails {
+  @apply result-display bg-amber-900/20 border border-amber-500/30;
+}
+
+/* Winner Highlight */
+.winner-highlight {
+  @apply relative overflow-hidden;
+}
+
+.winner-highlight::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(45deg, transparent, rgba(255, 215, 0, 0.1), transparent);
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Responsive Game Grid */
+.game-grid {
+  @apply grid gap-6;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+}
+
+@media (max-width: 640px) {
+  .game-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Game Creation Form */
+.game-form {
+  @apply space-y-6;
+}
+
+.form-section {
+  @apply space-y-4;
+}
+
+.form-label {
+  @apply block text-sm font-medium text-amber-200;
+}
+
+.form-error {
+  @apply text-red-400 text-sm mt-1;
+}
+
+/* Wallet Connection States */
+.wallet-connected {
+  @apply bg-green-900/20 border border-green-500/30 text-green-400;
+}
+
+.wallet-disconnected {
+  @apply bg-red-900/20 border border-red-500/30 text-red-400;
+}
+
+.wallet-connecting {
+  @apply bg-yellow-900/20 border border-yellow-500/30 text-yellow-400;
+}
+
+/* Notification Styles */
+.notification {
+  @apply fixed top-4 right-4 z-50 max-w-sm w-full;
+}
+
+.notification-success {
+  @apply bg-green-900/90 border border-green-500/50 text-green-100;
+}
+
+.notification-error {
+  @apply bg-red-900/90 border border-red-500/50 text-red-100;
+}
+
+.notification-warning {
+  @apply bg-yellow-900/90 border border-yellow-500/50 text-yellow-100;
+}
+
+.notification-info {
+  @apply bg-blue-900/90 border border-blue-500/50 text-blue-100;
+} 
