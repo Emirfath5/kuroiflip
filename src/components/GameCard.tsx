@@ -35,8 +35,8 @@ const GameCard: React.FC<GameCardProps> = ({
   
   const formatTime = (timestamp: string) => {
     try {
-      // Convert from microseconds to milliseconds if needed
-      const timeInMs = parseInt(timestamp) > 1000000000000 ? parseInt(timestamp) : parseInt(timestamp) * 1000;
+      // Convert from microseconds to milliseconds
+      const timeInMs = parseInt(timestamp) / 1000;
       const date = new Date(timeInMs);
       
       // Check if the date is valid
