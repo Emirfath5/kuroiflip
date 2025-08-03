@@ -34,10 +34,34 @@ const GameCard: React.FC<GameCardProps> = ({
   const canClaim = hasWinner && (isOwner || game.winner.vec.includes(userAddress || ''));
   
   const formatTime = (timestamp: string) => {
-    // Convert from microseconds to milliseconds if needed
-    const timeInMs = parseInt(timestamp) > 1000000000000 ? parseInt(timestamp) : parseInt(timestamp) * 1000;
-    const date = new Date(timeInMs);
-    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+    try {
+      // Convert from microseconds to milliseconds if needed
+      const timeInMs = parseInt(timestamp) > 1000000000000 ? parseInt(timestamp) : parseInt(timestamp) * 1000;
+      const date = new Date(timeInMs);
+      
+      // Check if the date is valid
+      if (isNaN(date.getTime())) {
+        return 'Invalid date';
+      }
+      
+      // Format the date properly
+      const now = new Date();
+      const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
+      
+      if (diffInHours < 1) {
+        const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
+        return `${diffInMinutes} minutes ago`;
+      } else if (diffInHours < 24) {
+        return `${Math.floor(diffInHours)} hours ago`;
+      } else {
+        return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { 
+          hour: '2-digit', 
+          minute: '2-digit' 
+        });
+      }
+    } catch (error) {
+      return 'Invalid date';
+    }
   };
 
   const getResultText = () => {

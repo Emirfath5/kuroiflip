@@ -21,7 +21,7 @@ const Header: React.FC = () => {
               </div>
               <div className="flex flex-col">
                 <h1 className="text-2xl font-black text-amber-100 tracking-wider">KUROI</h1>
-                <span className="text-xs text-amber-300 tracking-widest font-medium">FLIP</span>
+                <span className="text-xs text-amber-300 tracking-widest font-medium">APTOS COIN FLIP</span>
               </div>
             </div>
           </div>
