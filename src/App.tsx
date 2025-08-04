@@ -199,25 +199,26 @@ const AppContent: React.FC = () => {
               </div>
 
               {/* Rocket Crash Game */}
-              <Link to="/rocket-crash" className="block">
-                <div className="card hover:bg-stone-800 transition-colors duration-200 cursor-pointer">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 bg-gradient-to-br from-amber-100 to-yellow-100 rounded-lg flex items-center justify-center border border-amber-200/30">
-                        <span className="text-amber-800 font-bold text-lg">🚀</span>
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-semibold text-amber-100">Rocket Crash</h3>
-                        <p className="text-amber-300 text-sm">Cash out before it crashes!</p>
-                      </div>
+              <div className="card relative">
+                {/* Coming Soon Badge */}
+                <div className="absolute top-3 right-3 bg-amber-900/80 border border-amber-500/50 rounded-full px-3 py-1 z-10">
+                  <span className="text-amber-200 text-xs font-medium">COMING SOON</span>
+                </div>
+                <div className="flex items-center justify-between opacity-60">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-gradient-to-br from-amber-100 to-yellow-100 rounded-lg flex items-center justify-center border border-amber-200/30">
+                      <span className="text-amber-800 font-bold text-lg">🚀</span>
                     </div>
-                    <div className="text-right">
-                      <div className="text-amber-100 font-medium">1,247 players</div>
-                      <div className="text-amber-300 text-xs">Live now</div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-amber-100">Rocket Crash</h3>
+                      <p className="text-amber-300 text-sm">Cash out before it crashes!</p>
                     </div>
                   </div>
+                  <div className="text-right">
+                    <div className="text-amber-300 text-xs">Smart contract in development</div>
+                  </div>
                 </div>
-              </Link>
+              </div>
             </div>
 
             {/* NFT Info Card */}

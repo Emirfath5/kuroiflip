@@ -137,7 +137,20 @@ const RocketCrashPage: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Game Area */}
           <div className="lg:col-span-2">
-            <div className="card">
+            <div className="card relative">
+              {/* Coming Soon Overlay */}
+              <div className="absolute inset-0 bg-stone-900/90 backdrop-blur-sm rounded-lg flex items-center justify-center z-10">
+                <div className="text-center">
+                  <div className="w-20 h-20 bg-gradient-to-br from-amber-100 to-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-amber-200/50">
+                    <Rocket size={32} className="text-amber-800" />
+                  </div>
+                  <h2 className="text-2xl font-bold text-amber-100 mb-2">Coming Soon</h2>
+                  <p className="text-amber-300 text-lg mb-4">Rocket Crash is under development</p>
+                  <div className="bg-amber-900/20 border border-amber-500/30 rounded-lg px-4 py-2">
+                    <p className="text-amber-200 text-sm">Smart contract development in progress</p>
+                  </div>
+                </div>
+              </div>
               {/* Game Display */}
               <div className="bg-gradient-to-b from-stone-800 to-stone-900 rounded-lg p-8 border border-stone-700 mb-6">
                 <div className="text-center">
