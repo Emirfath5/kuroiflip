@@ -9,6 +9,7 @@ import NFTInfoCard from './components/NFTInfoCard';
 import RocketCrashPage from './pages/RocketCrashPage';
 import { RefreshCw, AlertCircle } from 'lucide-react';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import { Analytics } from '@vercel/analytics/react';
 
 const client = new AptosClient("https://api.mainnet.aptoslabs.com/v1");
 
@@ -199,26 +200,25 @@ const AppContent: React.FC = () => {
               </div>
 
               {/* Rocket Crash Game */}
-              <div className="card relative">
-                {/* Coming Soon Badge */}
-                <div className="absolute top-3 right-3 bg-amber-900/80 border border-amber-500/50 rounded-full px-3 py-1 z-10">
-                  <span className="text-amber-200 text-xs font-medium">COMING SOON</span>
-                </div>
-                <div className="flex items-center justify-between opacity-60">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-amber-100 to-yellow-100 rounded-lg flex items-center justify-center border border-amber-200/30">
-                      <span className="text-amber-800 font-bold text-lg">🚀</span>
+              <Link to="/rocket-crash" className="block">
+                <div className="card hover:bg-stone-800 transition-colors duration-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-gradient-to-br from-amber-100 to-yellow-100 rounded-lg flex items-center justify-center border border-amber-200/30">
+                        <span className="text-amber-800 font-bold text-lg">🚀</span>
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-amber-100">Rocket Crash</h3>
+                        <p className="text-amber-300 text-sm">Cash out before it crashes!</p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="text-lg font-semibold text-amber-100">Rocket Crash</h3>
-                      <p className="text-amber-300 text-sm">Cash out before it crashes!</p>
+                    <div className="text-right">
+                      <div className="text-green-400 text-xs font-medium">Live on Aptos</div>
+                      <div className="text-amber-300 text-xs">Ready to play</div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="text-amber-300 text-xs">Smart contract in development</div>
-                  </div>
                 </div>
-              </div>
+              </Link>
             </div>
 
             {/* NFT Info Card */}
@@ -283,6 +283,7 @@ const AppContent: React.FC = () => {
           </div>
         </div>
       </main>
+      <Analytics />
     </div>
   );
 };
@@ -296,6 +297,7 @@ const App: React.FC = () => {
           <Route path="/rocket-crash" element={<RocketCrashPage />} />
         </Routes>
       </Router>
+      <Analytics />
     </AuthProvider>
   );
 };

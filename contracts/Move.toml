@@ -1,0 +1,11 @@
+[package]
+name = "kuroi"
+version = "1.0.0"
+authors = ["Kuroi Team"]
+
+[dependencies]
+AptosFramework = { git = "https://github.com/aptos-labs/aptos-core.git", subdir = "aptos-move/framework/aptos-framework/", rev = "main" }
+
+[addresses]
+kuroi = "0x61e1ba7761958439e22cd22d9a8680abb9b8c1eb108f43fbfcd6c8e91da35831"
+kuroi_v2 = "0x61e1ba7761958439e22cd22d9a8680abb9b8c1eb108f43fbfcd6c8e91da35831" 

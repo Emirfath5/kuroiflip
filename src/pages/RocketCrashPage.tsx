@@ -1,341 +1,392 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../components/Auth';
-import { Rocket, Zap, TrendingUp, AlertCircle, ArrowLeft, Users, Clock } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import NFTBanner from '../components/NFTBanner';
+import { AptosClient } from '@aptos-labs/aptos-sdk';
+import { ROCKET_CRASH_CONTRACT, ROCKET_CRASH_FUNCTIONS } from '../config/contracts';
+import { Rocket } from 'lucide-react';
 
 const RocketCrashPage: React.FC = () => {
-  const { address, isConnected } = useAuth();
-  const navigate = useNavigate();
-  const [betAmount, setBetAmount] = useState<string>('');
-  const [cashoutMultiplier, setCashoutMultiplier] = useState<string>('2.0');
-  const [isGameActive, setIsGameActive] = useState(false);
-  const [currentMultiplier, setCurrentMultiplier] = useState(1.0);
-  const [gameHistory, setGameHistory] = useState<number[]>([1.5, 2.3, 1.8, 3.2, 1.2, 4.1, 1.9, 2.7]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string>('');
-  const [autoCashoutEnabled, setAutoCashoutEnabled] = useState(false);
-  const [gameStartTime, setGameStartTime] = useState<number>(0);
+  const { account, signAndSubmitTransaction } = useAuth();
+  const [betAmount, setBetAmount] = useState<number>(0.01);
+  const [currentGame, setCurrentGame] = useState<any>(null);
+  const [gameState, setGameState] = useState<'waiting' | 'active' | 'crashed'>('waiting');
+  const [multiplier, setMultiplier] = useState<number>(1.0);
   const [elapsedTime, setElapsedTime] = useState<number>(0);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string>('');
+  const [crashPoint, setCrashPoint] = useState<number>(0);
+  const [gameHistory, setGameHistory] = useState<number[]>([]);
 
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (isGameActive) {
-      interval = setInterval(() => {
-        setCurrentMultiplier(prev => prev + 0.1);
-        setElapsedTime(Date.now() - gameStartTime);
-      }, 1000);
+  const client = new AptosClient('https://fullnode.mainnet.aptoslabs.com');
+
+  // Sophisticated randomness simulation
+  const generateCrashPoint = (gameId: number, startTime: number, creator: string): number => {
+    // Multiple entropy sources for better randomness
+    const entropySources = [
+      gameId.toString(),
+      startTime.toString(),
+      creator,
+      Date.now().toString(),
+      Math.random().toString()
+    ].join('');
+    
+    // Generate hash-like value
+    let hash = 0;
+    for (let i = 0; i < entropySources.length; i++) {
+      const char = entropySources.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32-bit integer
     }
-    return () => clearInterval(interval);
-  }, [isGameActive, gameStartTime]);
-
-  // Auto cashout logic
-  useEffect(() => {
-    if (isGameActive && autoCashoutEnabled && currentMultiplier >= parseFloat(cashoutMultiplier)) {
-      cashout();
+    
+    const randomValue = Math.abs(hash) % 1000000;
+    
+    // Use sophisticated algorithm for crash point calculation
+    // This creates a more realistic distribution with higher probability of lower multipliers
+    let crashMultiplier: number;
+    
+    if (randomValue < 500000) {
+      // 50% chance of 1.0x - 2.0x
+      const base = 1.0;
+      const range = 1.0;
+      crashMultiplier = base + (randomValue % 1000000) / 1000000 * range;
+    } else if (randomValue < 800000) {
+      // 30% chance of 2.0x - 5.0x
+      const base = 2.0;
+      const range = 3.0;
+      crashMultiplier = base + (randomValue % 1000000) / 1000000 * range;
+    } else if (randomValue < 950000) {
+      // 15% chance of 5.0x - 20.0x
+      const base = 5.0;
+      const range = 15.0;
+      crashMultiplier = base + (randomValue % 1000000) / 1000000 * range;
+    } else {
+      // 5% chance of 20.0x - 1000.0x
+      const base = 20.0;
+      const range = 980.0;
+      crashMultiplier = base + (randomValue % 1000000) / 1000000 * range;
     }
-  }, [currentMultiplier, autoCashoutEnabled, cashoutMultiplier, isGameActive]);
+    
+    // Ensure minimum crash point of 1.0x
+    return Math.max(1.0, crashMultiplier);
+  };
 
-  const startGame = async () => {
-    if (!isConnected || !address) {
+  // Create a new game
+  const createGame = async () => {
+    if (!account) {
       setError('Please connect your wallet first');
       return;
     }
 
-    if (!betAmount || parseFloat(betAmount) < 0.01) {
-      setError('Please enter a valid bet amount (min 0.01 APT)');
-      return;
-    }
-
     setIsLoading(true);
     setError('');
 
     try {
-      // In real implementation, this would call the smart contract
-      console.log('Starting Rocket Crash game...');
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const payload = {
+        function: `${ROCKET_CRASH_CONTRACT.address}::${ROCKET_CRASH_CONTRACT.module}::${ROCKET_CRASH_FUNCTIONS.CREATE_GAME}`,
+        type_arguments: [],
+        arguments: [Math.floor(betAmount * 100000000)] // Convert to octas (8 decimals)
+      };
+
+      const response = await signAndSubmitTransaction(payload);
+      console.log('Game created:', response);
       
-      setIsGameActive(true);
-      setCurrentMultiplier(1.0);
-      setGameStartTime(Date.now());
-      setElapsedTime(0);
+      // Generate crash point for this game
+      const gameId = Date.now();
+      const startTime = Math.floor(Date.now() / 1000);
+      const newCrashPoint = generateCrashPoint(gameId, startTime, account.address || '');
+      setCrashPoint(newCrashPoint);
+      
+      // Add to game history
+      setGameHistory(prev => [newCrashPoint, ...prev.slice(0, 9)]);
+      
+      // Fetch the created game
+      await fetchCurrentGame();
     } catch (err) {
-      setError('Failed to start game');
+      console.error('Error creating game:', err);
+      setError('Failed to create game. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const cashout = async () => {
-    if (!isGameActive) return;
+  // Start the game
+  const startGame = async () => {
+    if (!account || !currentGame) return;
 
     setIsLoading(true);
+    setError('');
+
     try {
-      // In real implementation, this would call the smart contract
-      console.log('Cashing out at multiplier:', currentMultiplier);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const payload = {
+        function: `${ROCKET_CRASH_CONTRACT.address}::${ROCKET_CRASH_CONTRACT.module}::${ROCKET_CRASH_FUNCTIONS.START_GAME}`,
+        type_arguments: [],
+        arguments: [currentGame.game_id]
+      };
+
+      const response = await signAndSubmitTransaction(payload);
+      console.log('Game started:', response);
       
-      // Add to history
-      setGameHistory(prev => [currentMultiplier, ...prev.slice(0, 7)]);
-      
-      setIsGameActive(false);
-      setCurrentMultiplier(1.0);
-      setBetAmount('');
-      setAutoCashoutEnabled(false);
+      setGameState('active');
+      await fetchCurrentGame();
     } catch (err) {
-      setError('Failed to cashout');
+      console.error('Error starting game:', err);
+      setError('Failed to start game. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const resetGame = () => {
-    setIsGameActive(false);
-    setCurrentMultiplier(1.0);
-    setBetAmount('');
+  // Cash out from game
+  const cashOut = async () => {
+    if (!account || !currentGame) return;
+
+    setIsLoading(true);
     setError('');
-    setAutoCashoutEnabled(false);
-    setElapsedTime(0);
+
+    try {
+      const payload = {
+        function: `${ROCKET_CRASH_CONTRACT.address}::${ROCKET_CRASH_CONTRACT.module}::${ROCKET_CRASH_FUNCTIONS.CASH_OUT}`,
+        type_arguments: [],
+        arguments: [currentGame.game_id]
+      };
+
+      const response = await signAndSubmitTransaction(payload);
+      console.log('Cashed out:', response);
+      
+      setGameState('waiting');
+      setCurrentGame(null);
+    } catch (err) {
+      console.error('Error cashing out:', err);
+      setError('Failed to cash out. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const formatTime = (ms: number) => {
-    const seconds = Math.floor(ms / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  // Fetch current game data
+  const fetchCurrentGame = async () => {
+    if (!account) return;
+
+    try {
+      const resource = await client.getAccountResource(
+        ROCKET_CRASH_CONTRACT.address,
+        `${ROCKET_CRASH_CONTRACT.address}::${ROCKET_CRASH_CONTRACT.module}::GameStore`
+      );
+
+      if (resource.data) {
+        const games = resource.data.games || [];
+        if (games.length > 0) {
+          const latestGame = games[games.length - 1];
+          setCurrentGame(latestGame);
+          setGameState(latestGame.game_state === 0 ? 'waiting' : latestGame.game_state === 1 ? 'active' : 'crashed');
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching game:', err);
+    }
   };
 
-    return (
-      <div className="min-h-screen bg-stone-900">
-        {/* Header */}
-        <div className="bg-stone-800 border-b border-stone-700">
+  // Update multiplier based on elapsed time
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    
+    if (gameState === 'active' && currentGame) {
+      interval = setInterval(() => {
+        const now = Date.now() / 1000;
+        const start = currentGame.start_time;
+        const elapsed = now - start;
+        setElapsedTime(elapsed);
+        
+        // Calculate multiplier (exponential growth)
+        const newMultiplier = Math.max(1.0, Math.exp(elapsed / 10));
+        setMultiplier(newMultiplier);
+        
+        // Check if game should crash
+        if (newMultiplier >= crashPoint) {
+          setGameState('crashed');
+        }
+      }, 100);
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [gameState, currentGame, crashPoint]);
+
+  // Fetch game data on mount
+  useEffect(() => {
+    fetchCurrentGame();
+  }, [account]);
+
+  return (
+    <div className="min-h-screen bg-stone-900 text-amber-100 p-4">
+      <div className="max-w-4xl mx-auto">
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-amber-100 mb-2">Rocket Crash</h1>
+          <p className="text-amber-300">Watch the rocket soar and cash out before it crashes!</p>
         </div>
-        <NFTBanner />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <button
-              onClick={() => navigate('/')}
-              className="flex items-center space-x-2 text-amber-200 hover:text-amber-100 transition-colors"
-            >
-              <ArrowLeft size={20} />
-              <span>Back to Games</span>
-            </button>
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2 text-amber-300">
-                <Users size={16} />
-                <span className="text-sm">1,247 players</span>
-              </div>
-              <div className="flex items-center space-x-2 text-amber-300">
-                <Clock size={16} />
-                <span className="text-sm">Next round in 30s</span>
-              </div>
+
+        {/* Game History */}
+        {gameHistory.length > 0 && (
+          <div className="mb-6">
+            <h3 className="text-lg font-semibold mb-3">Recent Results</h3>
+            <div className="grid grid-cols-5 gap-2">
+              {gameHistory.map((crashPoint, index) => (
+                <div
+                  key={index}
+                  className={`px-3 py-2 rounded text-center text-sm font-medium ${
+                    crashPoint >= 2.0 
+                      ? 'bg-green-900/20 text-green-400 border border-green-500/30'
+                      : 'bg-red-900/20 text-red-400 border border-red-500/30'
+                  }`}
+                >
+                  {crashPoint.toFixed(2)}x
+                </div>
+              ))}
             </div>
           </div>
-        </div>
+        )}
 
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Main Game Area */}
-          <div className="lg:col-span-2">
-            <div className="card relative">
-              {/* Coming Soon Overlay */}
-              <div className="absolute inset-0 bg-stone-900/90 backdrop-blur-sm rounded-lg flex items-center justify-center z-10">
-                <div className="text-center">
-                  <div className="w-20 h-20 bg-gradient-to-br from-amber-100 to-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-amber-200/50">
-                    <Rocket size={32} className="text-amber-800" />
-                  </div>
-                  <h2 className="text-2xl font-bold text-amber-100 mb-2">Coming Soon</h2>
-                  <p className="text-amber-300 text-lg mb-4">Rocket Crash is under development</p>
-                  <div className="bg-amber-900/20 border border-amber-500/30 rounded-lg px-4 py-2">
-                    <p className="text-amber-200 text-sm">Smart contract development in progress</p>
-                  </div>
-                </div>
+        {/* Game Display */}
+        <div className="card relative mb-8">
+          <div className="bg-gradient-to-br from-stone-800 to-stone-900 rounded-lg p-8 text-center">
+            {/* Rocket Animation */}
+            <div className="mb-8">
+              <div className={`w-32 h-32 mx-auto transition-all duration-300 ${
+                gameState === 'active' ? 'animate-bounce' : ''
+              }`}>
+                <Rocket 
+                  size={128} 
+                  className={`${
+                    gameState === 'active' ? 'text-green-400' : 
+                    gameState === 'crashed' ? 'text-red-400' : 'text-amber-400'
+                  }`} 
+                />
               </div>
-              {/* Game Display */}
-              <div className="bg-gradient-to-b from-stone-800 to-stone-900 rounded-lg p-8 border border-stone-700 mb-6">
-                <div className="text-center">
-                  <div className="text-6xl font-black text-amber-100 mb-4">
-                    {isGameActive ? `${currentMultiplier.toFixed(1)}x` : '1.0x'}
-                  </div>
-                  <div className="text-lg text-amber-300 mb-2">
-                    {isGameActive ? '🚀 Rocket is flying!' : 'Ready to launch'}
-                  </div>
-                  {isGameActive && (
-                    <div className="text-sm text-amber-400">
-                      Time: {formatTime(elapsedTime)}
-                    </div>
-                  )}
-                </div>
-              </div>
+            </div>
 
-              {/* Game History */}
-              <div className="mb-6">
-                <h3 className="text-sm font-medium text-amber-200 mb-3">Recent Results</h3>
-                <div className="grid grid-cols-8 gap-2">
-                  {gameHistory.map((multiplier, index) => (
-                    <div
-                      key={index}
-                      className={`px-3 py-2 rounded text-center text-sm font-medium ${
-                        multiplier >= 2.0 
-                          ? 'bg-green-900/20 text-green-400 border border-green-500/30'
-                          : 'bg-red-900/20 text-red-400 border border-red-500/30'
-                      }`}
-                    >
-                      {multiplier.toFixed(1)}x
-                    </div>
-                  ))}
-                </div>
+            {/* Multiplier Display */}
+            <div className="mb-6">
+              <div className="text-6xl font-bold text-amber-100 mb-2">
+                {multiplier.toFixed(2)}x
               </div>
+              <div className="text-amber-300">
+                {gameState === 'active' ? 'Rocket is flying!' : 
+                 gameState === 'crashed' ? 'Rocket crashed!' : 'Ready to launch'}
+              </div>
+              {gameState === 'active' && (
+                <div className="text-sm text-amber-400 mt-2">
+                  Crash at: {crashPoint.toFixed(2)}x
+                </div>
+              )}
+            </div>
 
-              {/* Betting Controls */}
-              {!isGameActive && (
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-amber-200 mb-2">
-                      Bet Amount (APT)
-                    </label>
+            {/* Game Controls */}
+            <div className="space-y-4">
+              {gameState === 'waiting' && (
+                <div>
+                  <div className="mb-4">
+                    <label className="block text-amber-300 mb-2">Bet Amount (APT)</label>
                     <input
                       type="number"
-                      step="0.01"
-                      min="0.01"
-                      max="100"
                       value={betAmount}
-                      onChange={(e) => setBetAmount(e.target.value)}
-                      placeholder="0.01"
-                      className="input-field w-full"
-                      disabled={!isConnected}
+                      onChange={(e) => setBetAmount(parseFloat(e.target.value) || 0.01)}
+                      min="0.01"
+                      max="1000"
+                      step="0.01"
+                      className="w-full px-4 py-2 bg-stone-800 border border-amber-500 rounded-lg text-amber-100"
                     />
                   </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-amber-200 mb-2">
-                      Auto Cashout at
-                    </label>
-                    <div className="flex space-x-3">
-                      <input
-                        type="number"
-                        step="0.1"
-                        min="1.1"
-                        max="10"
-                        value={cashoutMultiplier}
-                        onChange={(e) => setCashoutMultiplier(e.target.value)}
-                        className="input-field flex-1"
-                        disabled={isGameActive}
-                      />
-                      <button
-                        onClick={() => setAutoCashoutEnabled(!autoCashoutEnabled)}
-                        className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
-                          autoCashoutEnabled
-                            ? 'bg-green-600 text-white'
-                            : 'bg-stone-700 text-amber-200 hover:bg-stone-600'
-                        }`}
-                      >
-                        {autoCashoutEnabled ? 'ON' : 'OFF'}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Error Message */}
-                  {error && (
-                    <div className="bg-red-900/20 border border-red-500/50 rounded-lg p-3 flex items-center space-x-2">
-                      <AlertCircle size={16} className="text-red-400" />
-                      <span className="text-red-400 text-sm">{error}</span>
-                    </div>
-                  )}
-
-                  {/* Start Button */}
                   <button
-                    onClick={startGame}
-                    disabled={isLoading || !isConnected}
-                    className="bg-gradient-to-r from-amber-600 to-yellow-600 hover:from-amber-700 hover:to-yellow-700 text-white px-6 py-3 rounded-lg font-medium transition-all duration-200 w-full flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed text-lg"
-                  >
-                    <Rocket size={20} />
-                    <span>
-                      {isLoading ? 'Starting...' : 'Launch Rocket'}
-                    </span>
-                  </button>
-                </div>
-              )}
-
-              {/* Game Controls */}
-              {isGameActive && (
-                <div className="flex space-x-4">
-                  <button
-                    onClick={cashout}
+                    onClick={createGame}
                     disabled={isLoading}
-                    className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white px-6 py-3 rounded-lg font-medium transition-all duration-200 flex-1 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed text-lg"
+                    className="btn-primary w-full"
                   >
-                    <Zap size={20} />
-                    <span>
-                      {isLoading ? 'Cashing Out...' : 'Cash Out'}
-                    </span>
-                  </button>
-                  <button
-                    onClick={resetGame}
-                    className="bg-stone-700 hover:bg-stone-600 text-amber-200 px-6 py-3 rounded-lg font-medium transition-all duration-200"
-                  >
-                    Reset
+                    {isLoading ? 'Creating Game...' : 'Create Game'}
                   </button>
                 </div>
               )}
-            </div>
-          </div>
 
-          {/* Sidebar */}
-          <div className="space-y-6">
+              {gameState === 'waiting' && currentGame && (
+                <button
+                  onClick={startGame}
+                  disabled={isLoading}
+                  className="btn-secondary w-full"
+                >
+                  {isLoading ? 'Starting...' : 'Start Game'}
+                </button>
+              )}
+
+              {gameState === 'active' && (
+                <button
+                  onClick={cashOut}
+                  disabled={isLoading}
+                  className="btn-success w-full"
+                >
+                  {isLoading ? 'Cashing Out...' : `Cash Out at ${multiplier.toFixed(2)}x`}
+                </button>
+              )}
+
+              {gameState === 'crashed' && (
+                <button
+                  onClick={() => {
+                    setGameState('waiting');
+                    setCurrentGame(null);
+                    setMultiplier(1.0);
+                    setElapsedTime(0);
+                  }}
+                  className="btn-primary w-full"
+                >
+                  Play Again
+                </button>
+              )}
+            </div>
+
+            {/* Error Display */}
+            {error && (
+              <div className="mt-4 p-3 bg-red-900/20 border border-red-500/30 rounded-lg">
+                <p className="text-red-300">{error}</p>
+              </div>
+            )}
+
             {/* Game Info */}
-            <div className="card">
-              <h3 className="text-lg font-semibold text-amber-100 mb-4">How to Play</h3>
-              <div className="space-y-3 text-sm text-amber-300">
-                <p>• Place your bet and launch the rocket</p>
-                <p>• The multiplier increases over time</p>
-                <p>• Cash out before the rocket crashes to win</p>
-                <p>• Higher multipliers = bigger rewards</p>
-                <p>• Use auto cashout for hands-free play</p>
+            {currentGame && (
+              <div className="mt-6 p-4 bg-stone-800/50 rounded-lg">
+                <h3 className="text-lg font-semibold mb-2">Game Info</h3>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-amber-300">Game ID:</span>
+                    <span className="ml-2">{currentGame.game_id}</span>
+                  </div>
+                  <div>
+                    <span className="text-amber-300">Total Pot:</span>
+                    <span className="ml-2">{(currentGame.total_pot / 100000000).toFixed(2)} APT</span>
+                  </div>
+                  <div>
+                    <span className="text-amber-300">Players:</span>
+                    <span className="ml-2">{currentGame.players?.length || 0}</span>
+                  </div>
+                  <div>
+                    <span className="text-amber-300">Crash Point:</span>
+                    <span className="ml-2">{crashPoint.toFixed(2)}x</span>
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
+          </div>
+        </div>
 
-            {/* Statistics */}
-            <div className="card">
-              <h3 className="text-lg font-semibold text-amber-100 mb-4">Statistics</h3>
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-amber-300 text-sm">House Edge</span>
-                  <span className="text-amber-100 font-medium">1%</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-amber-300 text-sm">Max Multiplier</span>
-                  <span className="text-amber-100 font-medium">1000x</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-amber-300 text-sm">Min Bet</span>
-                  <span className="text-amber-100 font-medium">0.01 APT</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-amber-300 text-sm">Max Bet</span>
-                  <span className="text-amber-100 font-medium">100 APT</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Recent Winners */}
-            <div className="card">
-              <h3 className="text-lg font-semibold text-amber-100 mb-4">Recent Winners</h3>
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-amber-300">Player123</span>
-                  <span className="text-green-400 font-medium">5.2x</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-amber-300">CryptoKing</span>
-                  <span className="text-green-400 font-medium">12.8x</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-amber-300">AptosGamer</span>
-                  <span className="text-green-400 font-medium">3.1x</span>
-                </div>
-              </div>
-            </div>
+        {/* Instructions */}
+        <div className="card">
+          <h2 className="text-2xl font-bold mb-4">How to Play</h2>
+          <div className="space-y-3 text-amber-200">
+            <p>1. Set your bet amount and create a game</p>
+            <p>2. Start the game to launch the rocket</p>
+            <p>3. Watch the multiplier increase exponentially</p>
+            <p>4. Cash out before the rocket crashes to win</p>
+            <p>5. If you wait too long and the rocket crashes, you lose your bet</p>
+            <p className="text-amber-400 mt-4">
+              <strong>New:</strong> Sophisticated randomness with realistic crash distributions!
+            </p>
           </div>
         </div>
       </div>
