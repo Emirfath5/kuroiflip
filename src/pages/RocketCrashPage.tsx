@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../components/Auth';
-import { AptosClient } from '@aptos-labs/aptos-sdk';
+import { AptosClient } from 'aptos';
 import { ROCKET_CRASH_CONTRACT, ROCKET_CRASH_FUNCTIONS } from '../config/contracts';
 import { Rocket } from 'lucide-react';
 
 const RocketCrashPage: React.FC = () => {
-  const { account, signAndSubmitTransaction } = useAuth();
+  const { address, signAndSubmitTransaction } = useAuth();
   const [betAmount, setBetAmount] = useState<number>(0.01);
   const [currentGame, setCurrentGame] = useState<any>(null);
   const [gameState, setGameState] = useState<'waiting' | 'active' | 'crashed'>('waiting');
@@ -71,7 +71,7 @@ const RocketCrashPage: React.FC = () => {
 
   // Create a new game
   const createGame = async () => {
-    if (!account) {
+    if (!address) {
       setError('Please connect your wallet first');
       return;
     }
@@ -92,7 +92,7 @@ const RocketCrashPage: React.FC = () => {
       // Generate crash point for this game
       const gameId = Date.now();
       const startTime = Math.floor(Date.now() / 1000);
-      const newCrashPoint = generateCrashPoint(gameId, startTime, account.address || '');
+             const newCrashPoint = generateCrashPoint(gameId, startTime, address || '');
       setCrashPoint(newCrashPoint);
       
       // Add to game history
@@ -110,7 +110,7 @@ const RocketCrashPage: React.FC = () => {
 
   // Start the game
   const startGame = async () => {
-    if (!account || !currentGame) return;
+    if (!address || !currentGame) return;
 
     setIsLoading(true);
     setError('');
@@ -137,7 +137,7 @@ const RocketCrashPage: React.FC = () => {
 
   // Cash out from game
   const cashOut = async () => {
-    if (!account || !currentGame) return;
+    if (!address || !currentGame) return;
 
     setIsLoading(true);
     setError('');
@@ -164,7 +164,7 @@ const RocketCrashPage: React.FC = () => {
 
   // Fetch current game data
   const fetchCurrentGame = async () => {
-    if (!account) return;
+    if (!address) return;
 
     try {
       const resource = await client.getAccountResource(
@@ -173,7 +173,8 @@ const RocketCrashPage: React.FC = () => {
       );
 
       if (resource.data) {
-        const games = resource.data.games || [];
+        const data = resource.data as any;
+        const games = data.games || [];
         if (games.length > 0) {
           const latestGame = games[games.length - 1];
           setCurrentGame(latestGame);
@@ -215,7 +216,7 @@ const RocketCrashPage: React.FC = () => {
   // Fetch game data on mount
   useEffect(() => {
     fetchCurrentGame();
-  }, [account]);
+  }, [address]);
 
   return (
     <div className="min-h-screen bg-stone-900 text-amber-100 p-4">
